@@ -649,31 +649,31 @@ const App = () => {
           <div className="nebula-bg"></div>
           <div className="noise-overlay"></div>
 
-          <div className="glass-panel p-12 rounded-[2.5rem] flex flex-col items-center max-w-md w-[90%] relative z-10 border-white/5 shadow-2xl shadow-nebula-purple/20">
-            <div className="mb-8 relative group">
+          <div className="glass-panel p-6 md:p-12 rounded-[2rem] md:rounded-[2.5rem] flex flex-col items-center max-w-md w-[90%] relative z-10 border-white/5 shadow-2xl shadow-nebula-purple/20">
+            <div className="mb-6 md:mb-8 relative group">
               <div className="absolute inset-0 bg-nebula-purple/30 blur-3xl rounded-full group-hover:bg-nebula-purple/50 transition-all duration-1000"></div>
-              <div className="relative w-24 h-24 glass-panel rounded-3xl flex items-center justify-center border-white/10 group-hover:scale-105 transition-transform duration-500">
-                <Codesandbox className="text-nebula-purple w-12 h-12" />
+              <div className="relative w-20 h-20 md:w-24 md:h-24 glass-panel rounded-3xl flex items-center justify-center border-white/10 group-hover:scale-105 transition-transform duration-500">
+                <Codesandbox className="text-nebula-purple w-10 h-10 md:w-12 md:h-12" />
               </div>
             </div>
 
-            <h2 className="font-heading text-4xl mb-2 tracking-tighter text-center bg-gradient-to-br from-white to-slate-400 bg-clip-text text-transparent">
+            <h2 className="font-heading text-3xl md:text-4xl mb-2 tracking-tighter text-center bg-gradient-to-br from-white to-slate-400 bg-clip-text text-transparent">
               Mobile Fix <span className="text-nebula-purple">Lab</span>
             </h2>
-            <p className="text-slate-500 text-xs font-bold uppercase tracking-[0.2em] mb-12">Enterprise OS v2.0</p>
+            <p className="text-slate-500 text-[10px] md:text-xs font-bold uppercase tracking-[0.2em] mb-8 md:mb-12">Enterprise OS v2.0</p>
 
             <button
               onClick={handleGoogleLogin}
-              className="w-full py-4 px-6 bg-white text-black rounded-2xl font-heading text-sm tracking-wide uppercase hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-4 group relative overflow-hidden"
+              className="w-full py-3.5 px-4 bg-white text-black rounded-2xl font-heading text-[clamp(10px,4vw,14px)] tracking-tight hover:scale-[1.02] active:scale-[0.98] transition-all flex flex-row items-center justify-center gap-2 group relative overflow-hidden"
             >
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-1000"></div>
-              <svg className="w-5 h-5" viewBox="0 0 24 24">
+              <svg className="w-[clamp(16px,5vw,20px)] h-[clamp(16px,5vw,20px)] shrink-0" viewBox="0 0 24 24">
                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
                 <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
                 <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
                 <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
               </svg>
-              <span className="font-bold">Continue with Google</span>
+              <span className="font-bold whitespace-nowrap">Continue with Google</span>
             </button>
 
             {loginError && (
