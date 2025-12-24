@@ -56,6 +56,18 @@ A professional Point of Sale (POS) and inventory management system designed for 
    npm run dev
    ```
 
+## 🚀 Deployment
+
+When deploying to Vercel, Netlify, or any other host, you **must** authorize your domain in Firebase:
+
+1.  Go to the [Firebase Console](https://console.firebase.google.com/).
+2.  Navigate to **Authentication** > **Settings** > **Authorized domains**.
+3.  Click **Add domain**.
+4.  Enter your domain (e.g., `mobilefixlab.vercel.app`).
+5.  Click **Add**.
+
+*Without this step, Google Sign-In will fail with an unauthorized domain error.*
+
 ## Usage
 
 - **Access**: Sign in using your Google Account. A private workspace is automatically created for you.
