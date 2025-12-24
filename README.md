@@ -1,10 +1,11 @@
 # Mobile Fix Lab
 
-A professional Point of Sale (POS) and inventory management system designed for mobile repair enterprises. Built with React 19 and Firebase, it features a high-performance glassmorphic interface with real-time data synchronization.
+A professional Point of Sale (POS) and inventory management system designed for mobile repair enterprises. Built with React 19 and Firebase, it features a high-performance glassmorphic interface with real-time data synchronization and multi-user workspace isolation.
 
 ## Core Features
 
 ### Inventory & POS
+- **Multi-user Workspaces**: Secure, isolated database for every shop owner linked to their Google Account.
 - **Real-time Inventory**: Automated stock tracking with low-stock indicators.
 - **Dynamic Terminal**: High-speed checkout with custom pricing and optimistic UI updates.
 - **Sales Analytics**: Comprehensive revenue tracking and top-product performance metrics.
@@ -15,7 +16,7 @@ A professional Point of Sale (POS) and inventory management system designed for 
 - **Reporting**: Professional PDF generation for sales history and audits.
 
 ### Security & UX
-- **Authentication**: Secure PIN-based access control.
+- **Authentication**: Secure, one-click login via Google Sign-In.
 - **Performance**: Optimized rendering with GSAP animations and Framer Motion.
 - **Responsive Design**: Fully functional across mobile, tablet, and desktop devices.
 
@@ -23,7 +24,7 @@ A professional Point of Sale (POS) and inventory management system designed for 
 
 - **Frontend**: React 19, Vite, Tailwind CSS
 - **Animations**: GSAP, Framer Motion
-- **Backend**: Firebase Firestore
+- **Backend**: Firebase Firestore & Authentication (Google Provider)
 - **Utilities**: Chart.js, jsPDF
 
 ## Installation
@@ -36,16 +37,28 @@ A professional Point of Sale (POS) and inventory management system designed for 
    ```
 
 2. **Environment Setup**
-   Configure your Firebase credentials in `src/firebase.js`.
+   Create a `.env` file with your Firebase credentials:
+   ```env
+   VITE_FIREBASE_API_KEY=your_api_key
+   VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+   VITE_FIREBASE_PROJECT_ID=your_project_id
+   VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+   VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+   VITE_FIREBASE_APP_ID=your_app_id
+   ```
 
-3. **Run**
+3. **Firebase Configuration**
+   - Enable **Google Sign-In** in the Firebase Console Authentication settings.
+   - Create a Firestore Database in the Firebase Console.
+
+4. **Run**
    ```bash
    npm run dev
    ```
 
 ## Usage
 
-- **Access**: Default PIN is `5555`.
+- **Access**: Sign in using your Google Account. A private workspace is automatically created for you.
 - **Management**: Use the Navigation Dock to switch between Dashboard, Inventory, Terminal, History, and Transfers.
 
 ## License

@@ -8,7 +8,8 @@ import {
   doc,
   onSnapshot,
   query,
-  orderBy
+  orderBy,
+  where
 } from 'firebase/firestore';
 import {
   Codesandbox,
@@ -42,8 +43,19 @@ import {
   Box,
   Receipt,
   Clock,
-  Wallet
+  Wallet,
+  LogOut,
+  Mail,
+  Lock,
+  UserPlus
 } from 'lucide-react';
+import {
+  onAuthStateChanged,
+  signOut,
+  GoogleAuthProvider,
+  signInWithPopup
+} from 'firebase/auth';
+import { auth } from './firebase';
 import { gsap } from 'gsap';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -95,9 +107,9 @@ const Toast = React.memo(({ id, msg, type, onRemove }) => {
 });
 
 const App = () => {
-  const [authorized, setAuthorized] = useState(sessionStorage.getItem('nebula_authorized') === 'true');
-  const [pin, setPin] = useState('');
-  const [loginError, setLoginError] = useState(false);
+  const [user, setUser] = useState(null);
+  const [authorized, setAuthorized] = useState(false);
+  const [loginError, setLoginError] = useState('');
   const [activeView, setActiveView] = useState('dashboard');
   const [stock, setStock] = useState([]);
   const [sales, setSales] = useState([]);
@@ -129,31 +141,60 @@ const App = () => {
   const viewContainerRef = useRef(null);
 
   useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setAuthorized(!!currentUser);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
-    const unsubscribeStock = onSnapshot(collection(db, "stock"), (snap) => {
-      setStock(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, (err) => {
-      showToast("Sync Error: " + err.message, 'error');
-    });
+    if (!user) {
+      setStock([]);
+      setSales([]);
+      setMoneyTransfers([]);
+      return;
+    }
 
-    const unsubscribeSales = onSnapshot(query(collection(db, "sales"), orderBy("time", "desc")), (snap) => {
-      setSales(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+    const unsubscribeStock = onSnapshot(
+      query(collection(db, "stock"), where("userId", "==", user.uid)),
+      (snap) => {
+        setStock(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      },
+      (err) => {
+        showToast("Sync Error: " + err.message, 'error');
+      }
+    );
 
-    const unsubscribeTransfers = onSnapshot(query(collection(db, "moneyTransfers"), orderBy("time", "desc")), (snap) => {
-      setMoneyTransfers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+    const unsubscribeSales = onSnapshot(
+      query(collection(db, "sales"), where("userId", "==", user.uid)),
+      (snap) => {
+        const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        data.sort((a, b) => b.time - a.time);
+        setSales(data);
+      }
+    );
+
+    const unsubscribeTransfers = onSnapshot(
+      query(collection(db, "moneyTransfers"), where("userId", "==", user.uid)),
+      (snap) => {
+        const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        data.sort((a, b) => b.time - a.time);
+        setMoneyTransfers(data);
+      }
+    );
 
     return () => {
       unsubscribeStock();
       unsubscribeSales();
       unsubscribeTransfers();
     };
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     const handleMouseMove = (e) => {
@@ -241,32 +282,24 @@ const App = () => {
     setToasts(prev => prev.filter(t => t.id !== id));
   }, []);
 
-  const handlePinDigit = (digit) => {
-    if (pin.length < 4) {
-      const newPin = pin + digit;
-      setPin(newPin);
-      if (newPin.length === 4) {
-        setTimeout(() => checkPin(newPin), 300);
-      }
+  const handleGoogleLogin = async () => {
+    setLoginError('');
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+      showToast("Welcome back!");
+    } catch (err) {
+      setLoginError(err.message.replace('Firebase: ', ''));
+      showToast("Login failed", 'error');
     }
   };
 
-  const checkPin = (currentPin) => {
-    if (currentPin === '5555') {
-      sessionStorage.setItem('nebula_authorized', 'true');
-      gsap.to("#login-overlay", {
-        y: -window.innerHeight,
-        opacity: 0,
-        duration: 1,
-        ease: "power4.inOut",
-        onComplete: () => {
-          setAuthorized(true);
-        }
-      });
-    } else {
-      setLoginError(true);
-      setPin('');
-      setTimeout(() => setLoginError(false), 1000);
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      showToast("Logged out successfully");
+    } catch (err) {
+      showToast("Logout failed", 'error');
     }
   };
 
@@ -326,7 +359,7 @@ const App = () => {
         const newItem = { id: tempId, ...data, time: Date.now() };
         setStock(prev => [...prev, newItem]);
 
-        const docRef = await addDoc(collection(db, "stock"), { ...data, time: Date.now() });
+        const docRef = await addDoc(collection(db, "stock"), { ...data, userId: user.uid, time: Date.now() });
         setStock(prev => prev.map(item =>
           item.id === tempId ? { ...item, id: docRef.id } : item
         ));
@@ -437,7 +470,7 @@ const App = () => {
     showToast("Processing sale...");
 
     try {
-      await addDoc(collection(db, "sales"), { items: saleItems, total, time: Date.now() });
+      await addDoc(collection(db, "sales"), { items: saleItems, total, userId: user.uid, time: Date.now() });
 
       const updatePromises = saleItems.map(c => {
         const original = stockBackup.find(s => s.id === c.id);
@@ -478,7 +511,7 @@ const App = () => {
     };
 
     try {
-      await addDoc(collection(db, "moneyTransfers"), transferData);
+      await addDoc(collection(db, "moneyTransfers"), { ...transferData, userId: user.uid });
       setShowMoneyTransferModal(false);
 
       setTransferAmount('');
@@ -610,90 +643,48 @@ const App = () => {
         ))}
       </div>
 
-      {/* PIN LOGIN OVERLAY */}
+      {/* AUTH LOGIN OVERLAY */}
       {!authorized && (
         <div id="login-overlay" className="fixed inset-0 z-[1000] flex items-center justify-center bg-gradient-to-br from-[#050505] via-[#0a0a0a] to-[#050505]">
           <div className="nebula-bg"></div>
           <div className="noise-overlay"></div>
 
-          <div className="glass-panel p-8 md:p-12 lg:p-16 rounded-3xl md:rounded-[2.5rem] flex flex-col items-center max-w-md w-[90%] relative z-10 border-white/5">
-            {/* Logo/Icon */}
-            <div className="mb-8 relative">
-              <div className="absolute inset-0 bg-nebula-purple/20 blur-2xl rounded-full"></div>
-              <div className="relative w-16 h-16 md:w-20 md:h-20 glass-panel rounded-2xl md:rounded-3xl flex items-center justify-center border-nebula-purple/20">
-                <ShieldCheck className="text-nebula-purple w-8 h-8 md:w-10 md:h-10" />
+          <div className="glass-panel p-12 rounded-[2.5rem] flex flex-col items-center max-w-md w-[90%] relative z-10 border-white/5 shadow-2xl shadow-nebula-purple/20">
+            <div className="mb-8 relative group">
+              <div className="absolute inset-0 bg-nebula-purple/30 blur-3xl rounded-full group-hover:bg-nebula-purple/50 transition-all duration-1000"></div>
+              <div className="relative w-24 h-24 glass-panel rounded-3xl flex items-center justify-center border-white/10 group-hover:scale-105 transition-transform duration-500">
+                <Codesandbox className="text-nebula-purple w-12 h-12" />
               </div>
             </div>
 
-            {/* Title */}
-            <h2 className="font-heading text-2xl md:text-3xl mb-1 tracking-tight text-center">
+            <h2 className="font-heading text-4xl mb-2 tracking-tighter text-center bg-gradient-to-br from-white to-slate-400 bg-clip-text text-transparent">
               Mobile Fix <span className="text-nebula-purple">Lab</span>
             </h2>
-            <p className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-12">Enter PIN to Continue</p>
+            <p className="text-slate-500 text-xs font-bold uppercase tracking-[0.2em] mb-12">Enterprise OS v2.0</p>
 
-            {/* PIN Dots */}
-            <div className="flex gap-3 mb-10">
-              {[0, 1, 2, 3].map(i => (
-                <div
-                  key={i}
-                  className={`w - 3 h - 3 md: w - 3.5 md: h - 3.5 rounded - full transition - all duration - 300 ${i < pin.length
-                    ? 'bg-nebula-purple border-2 border-nebula-purple scale-110 shadow-lg shadow-nebula-purple/50'
-                    : 'border-2 border-white/10 bg-white/5'
-                    } `}
-                ></div>
-              ))}
-            </div>
+            <button
+              onClick={handleGoogleLogin}
+              className="w-full py-4 px-6 bg-white text-black rounded-2xl font-heading text-sm tracking-wide uppercase hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-4 group relative overflow-hidden"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-1000"></div>
+              <svg className="w-5 h-5" viewBox="0 0 24 24">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+              </svg>
+              <span className="font-bold">Continue with Google</span>
+            </button>
 
-            {/* Number Pad */}
-            <div className="grid grid-cols-3 gap-3 w-full max-w-xs mb-6">
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => (
-                <button
-                  key={n}
-                  onClick={() => handlePinDigit(n.toString())}
-                  className="h-14 md:h-16 rounded-xl md:rounded-2xl glass-panel hover:bg-white/5 hover:border-white/10 active:scale-95 transition-all font-heading text-xl md:text-2xl flex items-center justify-center group relative overflow-hidden"
-                >
-                  <span className="relative z-10">{n}</span>
-                  <div className="absolute inset-0 bg-gradient-to-br from-nebula-purple/0 to-nebula-purple/0 group-hover:from-nebula-purple/5 group-hover:to-transparent transition-all duration-300"></div>
-                </button>
-              ))}
-
-              {/* Clear Button */}
-              <button
-                onClick={() => setPin('')}
-                className="h-14 md:h-16 rounded-xl md:rounded-2xl glass-panel hover:bg-rose-500/5 hover:border-rose-500/20 text-rose-400 active:scale-95 transition-all flex items-center justify-center group"
-              >
-                <RotateCcw className="w-5 h-5 md:w-6 md:h-6 group-hover:rotate-180 transition-transform duration-500" />
-              </button>
-
-              {/* Zero Button */}
-              <button
-                onClick={() => handlePinDigit('0')}
-                className="h-14 md:h-16 rounded-xl md:rounded-2xl glass-panel hover:bg-white/5 hover:border-white/10 active:scale-95 transition-all font-heading text-xl md:text-2xl flex items-center justify-center group relative overflow-hidden"
-              >
-                <span className="relative z-10">0</span>
-                <div className="absolute inset-0 bg-gradient-to-br from-nebula-purple/0 to-nebula-purple/0 group-hover:from-nebula-purple/5 group-hover:to-transparent transition-all duration-300"></div>
-              </button>
-
-              {/* Submit Button */}
-              <button
-                onClick={() => checkPin(pin)}
-                className="h-14 md:h-16 rounded-xl md:rounded-2xl bg-gradient-to-br from-nebula-purple to-nebula-pink text-white active:scale-95 transition-all flex items-center justify-center shadow-lg shadow-nebula-purple/30 hover:shadow-nebula-purple/50 group relative overflow-hidden"
-              >
-                <ArrowRight className="w-5 h-5 md:w-6 md:h-6 relative z-10 group-hover:translate-x-1 transition-transform" />
-                <div className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-all duration-300"></div>
-              </button>
-            </div>
-
-            {/* Error Message */}
-            <div className={`transition - all duration - 300 ${loginError ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} `}>
-              <div className="flex items-center gap-2 px-4 py-2 bg-rose-500/10 border border-rose-500/20 rounded-xl">
+            {loginError && (
+              <div className="mt-6 flex items-center gap-2 px-4 py-2 bg-rose-500/10 border border-rose-500/20 rounded-xl animate-shake">
                 <AlertCircle className="w-4 h-4 text-rose-400" />
-                <p className="text-rose-400 text-xs font-semibold">Invalid PIN</p>
+                <p className="text-rose-400 text-[10px] font-bold uppercase tracking-wide">{loginError}</p>
               </div>
-            </div>
+            )}
 
-            {/* Hint */}
-            <p className="text-slate-600 text-[10px] font-medium mt-6 text-center">
+            <p className="mt-8 text-[10px] text-slate-600 font-medium text-center max-w-[200px] leading-relaxed">
+              By continuing, you agree to our Terms of Service and Privacy Policy.
             </p>
           </div>
         </div>
@@ -743,13 +734,25 @@ const App = () => {
                 <span className="text-xl font-black font-heading tabular-nums text-nebula-purple">
                   {time.getHours().toString().padStart(2, '0')}:{time.getMinutes().toString().padStart(2, '0')}
                 </span>
-                <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Ahtisham Amjad</span>
+                <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">{user?.displayName || 'User'}</span>
+                <span className="text-[8px] text-slate-400 font-mono">ID: {user?.uid?.slice(0, 6)}...</span>
               </div>
-              <div className="relative group">
-                <div className="w-12 h-12 rounded-2xl border border-white/10 bg-white/5 group-hover:border-nebula-purple transition-all cursor-pointer flex items-center justify-center">
-                  <span className="font-heading text-2xl text-nebula-purple">A</span>
+              <div className="relative group flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl border border-white/10 bg-white/5 group-hover:border-nebula-purple transition-all cursor-pointer flex items-center justify-center relative overflow-hidden">
+                  {user?.photoURL ? (
+                    <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="font-heading text-2xl text-nebula-purple uppercase">{user?.email?.[0] || 'U'}</span>
+                  )}
+                  <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-4 border-nebula-dark rounded-full"></div>
                 </div>
-                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-4 border-nebula-dark rounded-full"></div>
+                <button
+                  onClick={handleLogout}
+                  className="w-10 h-10 rounded-xl border border-white/10 bg-white/5 hover:bg-rose-500/10 hover:border-rose-500/20 text-slate-500 hover:text-rose-500 transition-all flex items-center justify-center group/logout"
+                  title="Logout"
+                >
+                  <LogOut className="w-5 h-5 group-hover/logout:-translate-x-1 transition-transform" />
+                </button>
               </div>
             </div>
           </div>
